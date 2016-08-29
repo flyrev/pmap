@@ -35,7 +35,7 @@ public class Pokemon {
             while (n > 900) n -= 900;
             markerOptions.position(latLng);
             markerOptions.title(getPokemonName(id) + " " + ConversionTools.getTimerString(n));
-            if (hasIcon) markerOptions.icon(BitmapDescriptorFactory.fromAsset("icons/" + id + ".gif"));
+            if (hasIcon) markerOptions.icon(BitmapDescriptorFactory.fromAsset("icons/" + id + ".png"));
         }
         return markerOptions;
     }
