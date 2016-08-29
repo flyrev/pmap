@@ -34,8 +34,8 @@ public class Pokemon {
             int n = ConversionTools.calculateSpawnDiff(spawnTime);
             while (n > 900) n -= 900;
             markerOptions.position(latLng);
-            markerOptions.title("Name: " + getPokemonName(id) + ", : " + ConversionTools.getTimerString(n));
-            if (hasIcon) markerOptions.icon(BitmapDescriptorFactory.fromFile(id + ".gif"));
+            markerOptions.title(getPokemonName(id) + " " + ConversionTools.getTimerString(n));
+            if (hasIcon) markerOptions.icon(BitmapDescriptorFactory.fromAsset("icons/" + id + ".gif"));
         }
         return markerOptions;
     }

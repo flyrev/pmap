@@ -29,9 +29,7 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 
 import java.io.BufferedReader;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -51,81 +49,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private Button mClearButton;
     private Button mReloadButton;
-
-    private class GetAssetsTask extends AsyncTask<Void, Void, Void> {
-
-        private InputStream getLocalAssets(int id) throws IOException {
-            return MapsActivity.this.getAssets().open("icons/" + id + ".gif");
-        }
-
-        private InputStream getRemoteStream(int id) throws IOException {
-            ConnectivityManager connMgr = (ConnectivityManager)getSystemService(Context.CONNECTIVITY_SERVICE);
-            NetworkInfo networkInfo = connMgr.getActiveNetworkInfo();
-            if (networkInfo != null && networkInfo.isConnected()) {
-                String urlString = "http://www.pokemonmap.no/assets/pokemon_gif_static/" + id + ".gif";
-                URL url = new URL(urlString);
-                Log.d(TAG, "Downloading: " + urlString);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setReadTimeout(10000);
-                conn.setConnectTimeout(15000);
-                conn.setRequestMethod("GET");
-                conn.setDoInput(true);
-                conn.connect();
-                int response = conn.getResponseCode();
-                if (response != 200) {
-                    Log.e(TAG, "Could not download id: " + id);
-                    throw new IOException("Return code: " + response);
-                }
-                return conn.getInputStream();
-            } else {
-                throw new IOException("Network is not available");
-            }
-        }
-
-        @Override
-        protected Void doInBackground(Void... params) {
-            String[] files = fileList();
-            for (int i = 1; i <= 328; i++) {
-                try {
-                    boolean fileExists = false;
-                    for (String f : files) {
-                        if (f.equals(i + ".gif")) {
-                            fileExists = true;
-                            break;
-                        }
-                    }
-                    if (fileExists) continue;
-                    InputStream in;
-                    try {
-                        in = getLocalAssets(i);
-                    } catch (IOException e) {
-                        Log.e(TAG, "Could not extract " + i + ".gif from local storage");
-                        Log.i(TAG, "Trying remove");
-                        in = getRemoteStream(i);
-                    }
-
-                    FileOutputStream out = openFileOutput(i + ".gif", MODE_PRIVATE);
-                    int len;
-                    byte[] buffer = new byte[2048];
-                    while ((len = in.read(buffer)) != -1) {
-                        out.write(buffer, 0, len);
-                    }
-                    in.close();
-                    out.close();
-                } catch (IOException e) {
-                    Log.e(TAG, "Could not extract " + i + ".gif");
-                    deleteFile(i + ".gif");
-                }
-            }
-            return null;
-        }
-
-        @Override
-        protected void onPostExecute(Void aVoid) {
-            mClearButton.setEnabled(true);
-            mReloadButton.setEnabled(true);
-        }
-    }
 
     private class LiveDownloadTask extends AsyncTask<Void, Void, List<Pokemon>> {
         @Override
@@ -221,18 +144,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mReloadButton = (Button)findViewById(R.id.buttonReload);
         mClearButton.setOnClickListener(this);
         mReloadButton.setOnClickListener(this);
-        mClearButton.setEnabled(false);
-        mReloadButton.setEnabled(false);
-
-        //IconDownloadTask downloadTask = new IconDownloadTask();
-        //downloadTask.execute();
-        GetAssetsTask getAssetsTask = new GetAssetsTask();
-        getAssetsTask.execute();
-
 
         int permissionCheck = ContextCompat.checkSelfPermission(this,
                 android.Manifest.permission.ACCESS_FINE_LOCATION);
-
 
         if (permissionCheck != PackageManager.PERMISSION_GRANTED) {
 
