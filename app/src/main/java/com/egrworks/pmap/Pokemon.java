@@ -1,51 +1,54 @@
 package com.egrworks.pmap;
 
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Marker;
+import com.google.maps.android.clustering.ClusterItem;
 
-/**
- * Created by egr on 8/28/2016.
- */
-public class Pokemon {
+import java.util.Calendar;
 
-    private static final String[] POKEMON_NAMES =
-            {
-
-            };
-
+public class Pokemon implements ClusterItem {
     public final int id;
-    public final int spawnTime;
-    private final boolean hasIcon;
+    public final long despawnTime;
+    private final LatLng latLng;
+    public Marker label;
 
-    private LatLng latLng;
-    private MarkerOptions markerOptions = null;
-
-    public Pokemon(double lat, double lon, int id, int spawnTime, boolean hasIcon) {
+    public Pokemon(double lat, double lon, int id, long despawnTime) {
         this.id = id;
-        this.spawnTime = spawnTime;
-        this.hasIcon = hasIcon;
+        this.despawnTime = despawnTime;
         latLng = new LatLng(lat, lon);
     }
 
-    public MarkerOptions getMarkerOptions() {
-        if (markerOptions == null) {
-            markerOptions = new MarkerOptions();
-            int n = ConversionTools.calculateSpawnDiff(spawnTime);
-            while (n > 900) n -= 900;
-            markerOptions.position(latLng);
-            markerOptions.title(getPokemonName(id) + " " + ConversionTools.getTimerString(n));
-            if (hasIcon) markerOptions.icon(BitmapDescriptorFactory.fromAsset("icons/" + id + ".png"));
-        }
-        return markerOptions;
+    public int getRemainingTime() {
+        Calendar now = Calendar.getInstance();
+        return (int)(despawnTime - now.getTimeInMillis())/1000;
     }
 
-    public static String getPokemonName(int  id) {
-        if (id > POKEMON_NAMES.length || id < 1) return Integer.toString(id);
-        return POKEMON_NAMES[id-1];
+    public String getRemainingTimeString() {
+        int total = getRemainingTime();
+        if (total <= 0) return "00:00";
+        int seconds = total % 60;
+        int minutes = (total - seconds) / 60;
+        return (minutes > 9 ? minutes : "0" + minutes) + ":" + (seconds > 9 ? seconds : "0" + seconds);
     }
 
-    public LatLng getLatLng() {
+    public String getTitle() {
+        return MapsActivity.getPokemonNameForId(id);
+    }
+
+    @Override
+    public LatLng getPosition() {
         return latLng;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        } else if (!(o instanceof Pokemon)) {
+            return false;
+        } else {
+            Pokemon p = (Pokemon)o;
+            return (id == p.id && despawnTime == p.despawnTime && latLng.equals(p.getPosition()));
+        }
     }
 }

@@ -2,6 +2,7 @@ package com.egrworks.pmap;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
@@ -25,8 +26,14 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.maps.android.clustering.Cluster;
+import com.google.maps.android.clustering.ClusterManager;
+import com.google.maps.android.clustering.view.DefaultClusterRenderer;
+import com.google.maps.android.ui.IconGenerator;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -34,10 +41,9 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
+import java.util.Calendar;
+import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, LocationListener, View.OnClickListener {
     private static final String TAG = "MapsActivity";
@@ -46,14 +52,102 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private GoogleMap mMap;
     private LocationManager mLocationManager;
+    private IconGenerator mIconGenerator;
+
+    private ClusterManager<Pokemon> mClusterManager;
+    private List<Pokemon> mPokemons = new ArrayList<>();
 
     private Button mClearButton;
     private Button mReloadButton;
 
+    private TickUpdateTask mTickUpdateTask;
+
+    private static String[] POKEMON_NAMES = null;
+    public static String getPokemonNameForId(int id) {
+        if (id < 1 ||  id > POKEMON_NAMES.length) return Integer.toString(id);
+        String result = POKEMON_NAMES[id-1];
+        if (result.isEmpty()) return Integer.toString(id);
+        else return result;
+    }
+
+    private class PokemonRenderer extends DefaultClusterRenderer<Pokemon> {
+        public PokemonRenderer(Context context, GoogleMap map, ClusterManager<Pokemon> clusterManager) {
+            super(context, map, clusterManager);
+        }
+
+        @Override
+        protected void onBeforeClusterItemRendered(Pokemon item, MarkerOptions markerOptions) {
+            markerOptions.icon(BitmapDescriptorFactory.fromAsset("icons/" + item.id + ".png"));
+            markerOptions.title(item.getTitle());
+
+            if (item.label == null) {
+                mIconGenerator.setRotation(180);
+                mIconGenerator.setContentRotation(180);
+                Bitmap bm = mIconGenerator.makeIcon(item.getRemainingTimeString());
+                item.label = mMap.addMarker(new MarkerOptions()
+                        .icon(BitmapDescriptorFactory.fromBitmap(bm))
+                        .position(item.getPosition())
+                        .anchor(mIconGenerator.getAnchorU(), mIconGenerator.getAnchorV()));
+            }
+            item.label.setVisible(true);
+        }
+
+        @Override
+        protected void onBeforeClusterRendered(Cluster<Pokemon> cluster, MarkerOptions markerOptions) {
+            Collection<Pokemon> pokemons = cluster.getItems();
+            for (Pokemon p : pokemons) if (p.label != null) p.label.setVisible(false);
+            super.onBeforeClusterRendered(cluster, markerOptions);
+        }
+    }
+
+    private class TickUpdateTask extends AsyncTask<Void, Void, Void> {
+        private boolean running = true;
+        private List<Pokemon> toRemove = new ArrayList<>();
+        @Override
+        protected Void doInBackground(Void... params) {
+            try {
+                while (running) {
+                    publishProgress();
+                    Thread.sleep(1000);
+                }
+            } catch (InterruptedException e) {
+                // Ignore
+            }
+            return null;
+        }
+
+        public void stop() {
+            running = false;
+        }
+
+        @Override
+        protected void onProgressUpdate(Void... values) {
+            for (Pokemon p : mPokemons) {
+                if (p.getRemainingTime() <= 0) {
+                    if (p.label != null) p.label.remove();
+                    mClusterManager.removeItem(p);
+                    toRemove.add(p);
+                } else if (p.label != null && p.label.isVisible()) {
+                    mIconGenerator.setRotation(180);
+                    mIconGenerator.setContentRotation(180);
+                    Bitmap bm = mIconGenerator.makeIcon(p.getRemainingTimeString());
+                    p.label.setIcon(BitmapDescriptorFactory.fromBitmap(bm));
+                    p.label.setTitle(p.getRemainingTimeString());
+                }
+            }
+            if (toRemove.size() > 0) {
+                mPokemons.removeAll(toRemove);
+                toRemove.clear();
+                mClusterManager.cluster();
+            }
+        }
+    }
+
     private class LiveDownloadTask extends AsyncTask<Void, Void, List<Pokemon>> {
         @Override
         protected void onPreExecute() {
-            super.onPreExecute();
+            mTickUpdateTask.stop();
+            mTickUpdateTask = null;
         }
 
         @Override
@@ -84,19 +178,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     reader.close();
 
 
-                    List<Pokemon> result = new ArrayList<>();
-
-                    // Here is parsing of the input
-                    Set<String> filesSet = new HashSet<>();
-                    Collections.addAll(filesSet, fileList());
+                    List<Pokemon> result = new ArrayList<>(content.length/10);
                     try {
                         for (int i = 0; i < content.length; i += 10) {
-                            double lat = ConversionTools.long2Double(ConversionTools.bytes2Long(content, i));
-                            double lng = ConversionTools.long2Double(ConversionTools.bytes2Long(content, i + 4));
-                            int id = content[i + 8] & 0xff;
-                            int spawnTime = content[i + 9] & 0xff;
-                            boolean hasIcon = filesSet.contains(id + ".gif");
-                            result.add(new Pokemon(lat, lng, id, spawnTime, hasIcon));
+                            result.add(ConversionTools.decompress(content, i));
                         }
                     } catch (IndexOutOfBoundsException e) {
                         // ignore
@@ -116,18 +201,26 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         @Override
         protected void onPostExecute(List<Pokemon> pokemons) {
             if (pokemons != null) {
+                mPokemons.clear();
+                mClusterManager.clearItems();
                 mMap.clear();
+
                 int counter = 0;
                 LatLngBounds bounds = mMap.getProjection().getVisibleRegion().latLngBounds;
                 for (Pokemon p : pokemons) {
-                    if (bounds.contains(p.getLatLng())) {
-                        mMap.addMarker(p.getMarkerOptions());
+                    if (bounds.contains(p.getPosition())) {
+                        mClusterManager.addItem(p);
+                        mPokemons.add(p);
+                        //mMap.addMarker(p.getMarkerOptions());
                         counter++;
                     }
                 }
                 Log.d(TAG, "Added " + counter + " pokemons");
             }
             mReloadButton.setEnabled(true);
+            mClusterManager.cluster();
+            mTickUpdateTask = new TickUpdateTask();
+            mTickUpdateTask.execute();
         }
     }
 
@@ -145,6 +238,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mClearButton.setOnClickListener(this);
         mReloadButton.setOnClickListener(this);
 
+        mIconGenerator = new IconGenerator(this);
+
+        if (POKEMON_NAMES == null)
+            POKEMON_NAMES = getResources().getStringArray(R.array.pokemon_names);
+
         int permissionCheck = ContextCompat.checkSelfPermission(this,
                 android.Manifest.permission.ACCESS_FINE_LOCATION);
 
@@ -158,6 +256,20 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 // app-defined int constant. The callback method gets the
                 // result of the request.
         }
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        mTickUpdateTask = new TickUpdateTask();
+        mTickUpdateTask.execute();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        if (mTickUpdateTask != null) mTickUpdateTask.stop();
+        mTickUpdateTask = null;
     }
 
     @Override
@@ -176,6 +288,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
+        mClusterManager = new ClusterManager<>(this, mMap);
+        mClusterManager.setRenderer(new PokemonRenderer(this, mMap, mClusterManager));
+        mMap.setOnCameraIdleListener(mClusterManager);
         int res = this.checkCallingOrSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION);
         if (res == PackageManager.PERMISSION_GRANTED) {
             mMap.setMyLocationEnabled(true);

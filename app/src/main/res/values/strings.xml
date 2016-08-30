@@ -1,4 +1,34 @@
 <resources>
     <string name="app_name">Pmap</string>
     <string name="title_activity_maps">Map</string>
+
+    <array name="pokemon_names">
+        <item>Bulbasaur</item>
+        <item>Ivysaur</item>
+        <item></item>
+        <item>Charmander</item>
+        <item></item>
+        <item></item>
+        <item>Squirtle</item>
+        <item>Wartortle</item>
+        <item></item>
+        <item>Caterpie</item>
+        <item>Metapod</item>
+        <item></item>
+        <item>Weedle</item>
+        <item>Kakuna</item>
+        <item>Beedrill</item>
+        <item>Pidgey</item>
+        <item>Pidgeotto</item>
+        <item>Pidgeot</item>
+        <item>Rattata</item>
+        <item>Raticate</item>
+        <item>Spearow</item>
+        <item>Fearow</item>
+        <item>Ekans</item>
+        <item></item>
+        <item>Pikachu</item>
+        <item></item>
+        <item>Sandshrew</item>
+    </array>
 </resources>

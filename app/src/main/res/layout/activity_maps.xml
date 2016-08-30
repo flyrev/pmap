@@ -24,6 +24,6 @@
         android:layout_height="wrap_content"
         android:text="Reload"
         android:id="@+id/buttonReload"
-        android:layout_alignBottom="@+id/buttonClear"
-        android:layout_alignParentEnd="true" />
+        android:layout_alignParentBottom="true"
+        android:layout_toEndOf="@+id/buttonClear" />
 </RelativeLayout>

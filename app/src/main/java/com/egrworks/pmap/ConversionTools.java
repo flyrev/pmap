@@ -1,5 +1,6 @@
 package com.egrworks.pmap;
 
+import java.util.Calendar;
 import java.util.Date;
 
 /**
@@ -9,7 +10,7 @@ public class ConversionTools {
 
     private ConversionTools() {}
 
-    public static double long2Double(long e) {
+    private static double long2Double(long e) {
         long t = (2147483648L & e) != 0 ? -1 : 1;
         long n = (e >> 23 & 255L) - 127L;
         long i = 8388607L & e;
@@ -26,12 +27,25 @@ public class ConversionTools {
         return t * new_i * Math.pow(2, n);
     }
 
-    public static long bytes2Long(byte[] e, int t) {
+    private static long bytes2Long(byte[] e, int t) {
         long var1 = ((e[t + 3] & 0xff) << 24);
         long var2 = ((e[t + 2] & 0xff) << 16);
         long var3 = ((e[t + 1] & 0xff) << 8);
         long var4 = e[t] & 0xff;
         return var1 + var2 + var3 + var4;
+    }
+
+    public static Pokemon decompress(byte[] stream, int offset) {
+        double lat = long2Double(ConversionTools.bytes2Long(stream, offset));
+        double lng = long2Double(ConversionTools.bytes2Long(stream, offset + 4));
+        int id = stream[offset + 8] & 0xff;
+        int spawnTime = stream[offset + 9] & 0xff;
+        int n = ConversionTools.calculateSpawnDiff(spawnTime);
+        while (n > 900) n -= 900;
+        if ( n <= 0 && n >= -900) n+= 900;
+        Calendar cal = Calendar.getInstance();
+        cal.add(Calendar.SECOND, n);
+        return new Pokemon(lat, lng, id, cal.getTimeInMillis());
     }
 
     /*public static long calculateSpawnTime(int e) {
@@ -58,7 +72,7 @@ public class ConversionTools {
         return 10 > t && (t = "0" + t), 10 > n && (n = "0" + n), t + ":" + n*/
     }
 
-    public static int calculateSpawnDiff(int e) {
+    private static int calculateSpawnDiff(int e) {
         Date t1 = new Date();
         t1.setMinutes(e);
         t1.setSeconds(0);
